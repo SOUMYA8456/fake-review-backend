@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# ✅ CORS
+# ✅ CORS (allow frontend)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,51 +51,86 @@ class ReviewInput(BaseModel):
     time_diff: float
     is_duplicate: float
 
+# 🔥 RULE-BASED SMART FEATURE FUNCTION
+def smart_text_features(text):
+    text_lower = text.lower()
+
+    exclamations = text.count("!")
+    repeated_words = len(text.split()) - len(set(text.split()))
+    caps_ratio = sum(1 for c in text if c.isupper()) / (len(text) + 1)
+
+    score = 0
+
+    if exclamations > 3:
+        score += 0.3
+    if repeated_words > 2:
+        score += 0.3
+    if caps_ratio > 0.3:
+        score += 0.2
+    if "amazing" in text_lower or "best" in text_lower or "wow" in text_lower:
+        score += 0.2
+
+    return min(score, 1.0)
+
+# 🏠 Home route
 @app.get("/")
 def home():
-    return {"message": "Backend is running 🚀"}
+    return {"message": "Fake Review Detection Backend is running 🚀"}
 
+# 🧠 Prediction API
 @app.post("/predict")
 def predict(data: ReviewInput):
     try:
-        # 🔍 DEBUG INPUT
-        print("Incoming Review:", data.review)
-
-        # ================= TEXT MODEL =================
+        # ✅ TEXT MODEL
         text_vector = vectorizer.transform([data.review])
+        text_prob = text_model.predict_proba(text_vector)[0][1]
 
-        print("Vector shape:", text_vector.shape)
-
-        # 🚨 If vector is empty → FIX fallback
-        if text_vector.shape[1] == 0:
-            text_prob = 0.5
-        else:
-            text_prob = text_model.predict_proba(text_vector)[0][1]
-
-        # ================= BEHAVIOR MODEL =================
+        # ✅ BEHAVIOR MODEL
         behavior_features = np.array([[
             data.reviews_per_user,
             data.avg_label,
             data.time_diff,
             data.is_duplicate
         ]])
-
-        print("Behavior input:", behavior_features)
-
         behavior_prob = behavior_model.predict_proba(behavior_features)[0][1]
 
-        # ================= FINAL SCORE =================
-        final_score = (0.7 * text_prob) + (0.3 * behavior_prob)
+        # ✅ RULE-BASED SCORE
+        rule_score = smart_text_features(data.review)
 
+        # ✅ FINAL SCORE (Improved)
+        final_score = (
+            0.5 * text_prob +
+            0.3 * behavior_prob +
+            0.2 * rule_score
+        )
+
+        # ✅ Prediction
         prediction = "Fake" if final_score > 0.5 else "Genuine"
 
+        # ✅ Explainability (for viva 🔥)
+        reasons = []
+
+        if rule_score > 0.3:
+            reasons.append("Suspicious text pattern")
+
+        if data.reviews_per_user > 20:
+            reasons.append("Too many reviews by user")
+
+        if data.is_duplicate == 1:
+            reasons.append("Duplicate review detected")
+
+        if data.time_diff < 2:
+            reasons.append("Reviews posted too quickly")
+
+        # ✅ Response
         return {
             "prediction": prediction,
-            "text_score": round(float(text_prob), 3),
-            "behavior_score": round(float(behavior_prob), 3),
-            "final_score": round(float(final_score), 3)
+            "text_score": float(text_prob),
+            "behavior_score": float(behavior_prob),
+            "rule_score": float(rule_score),
+            "final_score": float(final_score),
+            "reasons": reasons
         }
 
     except Exception as e:
-        print("ERROR:", str(e))
         return {"error": str(e)}
