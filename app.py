@@ -51,7 +51,7 @@ class ReviewInput(BaseModel):
     time_diff: float
     is_duplicate: float
 
-# 🔥 RULE-BASED SMART FEATURE FUNCTION
+# 🔥 RULE-BASED FEATURE FUNCTION
 def smart_text_features(text):
     text_lower = text.lower()
 
@@ -97,17 +97,20 @@ def predict(data: ReviewInput):
         # ✅ RULE-BASED SCORE
         rule_score = smart_text_features(data.review)
 
-        # ✅ FINAL SCORE (Improved)
+        # ✅ FINAL SCORE (IMPROVED WEIGHTS)
         final_score = (
-            0.5 * text_prob +
+            0.4 * text_prob +
             0.3 * behavior_prob +
-            0.2 * rule_score
+            0.3 * rule_score
         )
 
-        # ✅ Prediction
-        prediction = "Fake" if final_score > 0.5 else "Genuine"
+        # 🔥 SMART OVERRIDE LOGIC
+        if rule_score > 0.6 and behavior_prob > 0.3:
+            prediction = "Fake"
+        else:
+            prediction = "Fake" if final_score > 0.5 else "Genuine"
 
-        # ✅ Explainability (for viva 🔥)
+        # ✅ Explainability (for viva)
         reasons = []
 
         if rule_score > 0.3:
